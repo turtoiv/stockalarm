@@ -3,6 +3,7 @@ package com.test.devm.stockalarm.utils;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,31 +22,32 @@ public class StockScheduler {
 	@Autowired
 	AlphaVantageConnector connector;
 	
-	Map<String, Double> activeStocks = new Hashtable<String, Double>();
+	Map<String, Double> activeStocks = new ConcurrentHashMap<String,Double>();
 	
-	@Scheduled(fixedDelay = 10000, initialDelay = 1000)
+	@Scheduled(fixedDelayString = "${fixedDelay.in.milliseconds}")
 	public void checkAlarms() {
 		activeStocks.clear();
 		List<Alarm> alarms = repository.findActiveAlarms();
-		System.out.println("Scheduler started and it found " + String.valueOf(alarms.size()));
-		
 		alarms.parallelStream().forEach(alarm -> processAlarm(alarm));
 	}
 	
 	private void processAlarm(Alarm alarm) {
 		
-		double currentPrice;
+		Double currentPrice;
 		double originalPrice = alarm.getPrice();
 		double variation = alarm.getVariation();
 		double targetPrice = originalPrice + originalPrice * variation/100;
 		
 		String stock = alarm.getStock();
 		
-		if( activeStocks.get(stock) == null) {
-			currentPrice = connector.getPrice(stock);
-			activeStocks.put(stock, currentPrice);
-		} else {
+		synchronized(activeStocks) {
 			currentPrice = activeStocks.get(stock);
+		}
+		if( currentPrice == null) {
+			currentPrice = connector.getPrice(stock);
+			synchronized(activeStocks) {
+				activeStocks.put(stock, currentPrice);
+			}
 		}
 
 		if (( variation > 0 && ( currentPrice > ( targetPrice ))) || 

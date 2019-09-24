@@ -29,27 +29,22 @@ public class AlphaVantageConnector {
 			return 0;
 		}
 		
-		String price = parseItem(reply);
+		ObjectMapper mapper = new ObjectMapper();
+		String price = null;
+		
+		try {
+			StockData data = mapper.readValue(reply,  StockData.class);
+			price = data.getQuote().get("05. price").toString();
+		} catch (Exception e) {
+			System.out.println("Some error during deserialization");
+		}
+		
 		if ( price == null ) {
 			return 0;
 		}
 		
 		price = price.replaceAll("^\"|\"$", "");
 		return Double.valueOf(price);
-	}
-	
-	private String parseItem(String item) {
-		
-		ObjectMapper mapper = new ObjectMapper();
-		String price = null;
-		try {
-			StockData data = mapper.readValue(item,  StockData.class);
-			price = data.getQuote().get("05. price").toString();
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		
-		return price;
 	}
 	
 	private String getRequest(String stock) {
@@ -66,7 +61,6 @@ public class AlphaVantageConnector {
 				responseBuilder.append(line);
 			}
 			bufferedReader.close();
-			System.out.println("getRequest returned " + responseBuilder.toString());
 			return responseBuilder.toString();
 		} catch (IOException ex) {
 			System.out.println("error on alpha request");
